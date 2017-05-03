@@ -13,6 +13,9 @@ cool/include/PA3/
 cool/include/PA4/
 cool/include/PA5/
 
+
+cool/assignments/PA1/
+
 notes/
 resources/
 
@@ -24,4 +27,4 @@ include
 lib
 src
 
-!cool/assignments/PA1
+!*/assignments
