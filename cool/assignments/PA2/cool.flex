@@ -2,11 +2,6 @@
  *  The scanner definition for COOL.
  */
 
-/*
- *  Stuff enclosed in %{ %} in the first section is copied verbatim to the
- *  output, so headers and global definitions are placed here to be visible
- * to the code in the file.  Don't remove anything that was here initially
- */
 %{
 #include <cool-parse.h>
 #include <stringtab.h>
@@ -55,10 +50,13 @@ TYPE_ID		[A-Z][a-zA-Z0-9_]*
 SELF		self
 SELF_T		SELF_TYPE
 
-// SYNTATIC SYMBOLS
+// SYMBOLS
+.	    .
+@	    @
 <-	    <-
 =	    =
 (	    (
+)	    )
 +	    +
 -	    -
 *	    *
@@ -67,36 +65,40 @@ SELF_T		SELF_TYPE
 <=	    <=
 ;	    ;
 ,	    ,
+~	    ~
+}	    }
+{	    {
+
 
 // KEYWORDS
-IF          (?i:if)
-FI	    (?i:fi)
-THEN	    (?i:then)
-ELSE	    (?i:else)
-CLASS	    (?i:class)
+IF_K        (?i:if)
+FI_K	    (?i:fi)
+THEN_K	    (?i:then)
+ELSE_K	    (?i:else)
+CLASS_K	    (?i:class)
 FALSE	    f(?i:alse)
 TRUE	    t(?i:rue)
-IF	    (?i:in)
-INHERITS    (?i:inherits)
-ISVOID	    (?i:isvoid)
-LET	    (?i:let)
-LOOP	    (?i:loop)
-POOL	    (?i:pool)
-WHILE	    (?i:while)
-CASE	    (?i:case)
-ESAC	    (?i:esac)
-NEW	    (?i:new)
-OF	    (?i:of)
-NOT	    (?i:not)
+INHERITS_K  (?i:inherits)
+ISVOID_K    (?i:isvoid)
+LET_K	    (?i:let)
+LOOP_K	    (?i:loop)
+POOL_K	    (?i:pool)
+WHILE_K	    (?i:while)
+CASE_K	    (?i:case)
+ESAC_K	    (?i:esac)
+NEW_K	    (?i:new)
+OF_K	    (?i:of)
+NOT_K	    (?i:not)
 
-//WHITESPACE
-BLANK	\32 //?
+// WHITESPACES
+BLANK	\32
 NEWLN	(\n|\10)
 FORMFEED    (\f|\12)
 CRETURN	    (\r|\13)
 TAB	    (\t|\09)
 VERTAB	    (\v|\11)
 
+BACKSPACE   \b
 
 %x comment
 %x comment_line
@@ -175,15 +177,16 @@ VERTAB	    (\v|\11)
 	 }
 }
 
-<string>[\t|\b|\f]{
+<string>[TAB|BACKSPACE|FORMFEED|BLANK]{
 
 	// silly hacks
 	char sym;
 	char* match = strdup(yytext);
 
-	if(match == "\t") sym = '\t';
+	if(match == "\t" || match == "\09") sym = '\t';
 	else if(match == "\b") sym = '\b';
-	else if(match == "\f") sym = '\f';
+	else if(match == "\f" || match == "\12") sym = '\f';
+	else if(match == "\32") sym = ' ';
 
 	if(str_i + 1 < MAX_STR_CONST){
 	   string_buf[str_i] = sym;
@@ -251,21 +254,91 @@ VERTAB	    (\v|\11)
   */
 
 {DARROW}		{ return (DARROW); }
-{ID} { }
+
+{<=}			{ return (LE); }
+
+{<-}			{return (ASSIGN); }
+
+{INTEGER} {
+     cool_yylval.symbol = inttable.add_string(yytext)
+     return INT_CONST;
+
+}
+
+{ID} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return OBJECTID;
+}
+
+{TYPE_ID} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return TYPEID;
+}
+
+{SELF} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return OBJECTID;
+}
+
+{SELF_T} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return OBJECTID;
+}
+
+{FALSE | TRUE} {
+    cool_yylval.boolean = yytext;
+    return BOOL_CONTS;
+}
+
+ /*
+  * One-character symbols.
+  */
+
+{.}	{ return 46; }
+{@}	{ return 64; }
+{=}	{ return 61; }
+{(}	{ return 40; }
+{)}	{ return 41; }
+{+}	{ return 43; }
+{-}	{ return 45; }
+{*}	{ return 42; }
+{/}	{ return 47; }
+{<}	{ return 60; }
+{;}	{ return 59; }
+{,}	{ return 44; }
+{~}	{ return 126; }
+{}}	{ return 125; }
+{{}	{ return 123; }
 
  /*
   * Keywords are case-insensitive except for the values true and false,
   * which must begin with a lower-case letter.
   */
 
+{IF_K}		{ return (IF); }
+{FI_K}		{ return (FI); }
+{THEN_K}	{ return (THEN); }
+{ELSE_K}	{ return (ELSE); }
+{CLASS_K}	{ return (CLASS); }
+{INHERITS_K}	{ return (INHERITS); }
+{ISVOID_K}	{ return (ISVOID); }
+{LET_K}		{ return (LET_STMT); }
+{LOOP_K}	{ return (LOOP); }
+{POOL_K}	{ return (POOL); }
+{WHILE_K}	{ return (WHILE); }
+{CASE_K}	{ return (CASE); }
+{ESAC_K}	{ return (ESAC); }
+{NEW_K}		{ return (NEW); }
+{OF_K}		{ return (OF); }
+{NOT_K}		{ return (NOT); }
 
- /*
-  *  String constants (C syntax)
-  *  Escape sequence \c is accepted for all characters c. Except for
-  *  \n \t \b \f, the result is c.
-  *
-  */
-
+NEWLN		{ ++curr_lineno; }
+BLANK
+FORMFEED
+CRETURN
+VERTAB
+TAB
+BACKSPACE
 
 %%
 
