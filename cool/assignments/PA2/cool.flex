@@ -11,6 +11,7 @@
 #include <cool-parse.h>
 #include <stringtab.h>
 #include <utilities.h>
+#include <string.h>
 
 /* The compiler assumes these identifiers. */
 #define yylval cool_yylval
@@ -38,6 +39,8 @@ extern int curr_lineno;
 extern int verbose_flag;
 
 extern YYSTYPE cool_yylval;
+
+extern int str_i;
 %}
 
 /*
@@ -62,6 +65,8 @@ SELF_T		SELF_TYPE
 /	    /
 <	    <
 <=	    <=
+;	    ;
+,	    ,
 
 // KEYWORDS
 IF          (?i:if)
@@ -102,6 +107,11 @@ VERTAB	    (\v|\11)
   *  Nested comments
   */
 
+*) {
+	cool_ylval.error_msg = "Unmatched *)";
+	return (ERROR);
+}
+
 (*	BEGIN(comment);
 <string, comment> {
 	 cool_yylval.error_msg = "Comment in the string.";
@@ -118,7 +128,7 @@ VERTAB	    (\v|\11)
 
 
 /*
-  *  One-line comments
+  *  One-line comment
   */
 "--"  BEGIN(comment_line);
 <comment, comment_line> {
@@ -126,8 +136,9 @@ VERTAB	    (\v|\11)
 	  return ERROR;
 }
 
-<comment_line><<EOF>> { //check if there is no newline
-
+<comment_line><<EOF>> {
+	 cool_yylval.error_msg = "EOF in the comment.";
+	 return ERROR;
 }
 <comment_line>\n {
 		 ++curr_lineno;
@@ -135,24 +146,105 @@ VERTAB	    (\v|\11)
 }
 
 /*
-  *  Strings  TO DO!
+  *  Strings
   */
 
-"	BEGIN(string);
+\"	BEGIN(string);
+
 <string>\n {
-	   cool_yyval.error_msg = "Illegal non-escaped newline character in the string.";
-	   return ERROR;
-}
+	   cool_yyval.error_msg = "Non-escaped newline character in the string.";
+	   return ERROR; }
 
 <string><<EOF>> {
 	  cool_yyval.error_msg = "EOF in the string!"
-	  return ERROR;
+	  return ERROR; }
+
+<string>\\. {
+	  cool_yyval.error_msg = "Bogus escape in string";
+	  return ERROR; }
+
+<string>\\n {
+	 ++curr_lineno;
+
+	 if(str_i + 1 < MAX_STR_CONST){
+	   string_buf[str_i] = '\n';
+	   ++str_i;
+	 }
+	 else {
+	   string_too_long(); // report an error
+	 }
 }
 
-<string>\\n { ++curr_lineno;
+<string>[\t|\b|\f]{
+
+	// silly hacks
+	char sym;
+	char* match = strdup(yytext);
+
+	if(match == "\t") sym = '\t';
+	else if(match == "\b") sym = '\b';
+	else if(match == "\f") sym = '\f';
+
+	if(str_i + 1 < MAX_STR_CONST){
+	   string_buf[str_i] = sym;
+	   ++str_i;
+	   free(match);
+	 }
+	 else {
+	   free(match);
+	   string_too_long(); // report an error
+	 }
 }
 
-<string>"   BEGIN(INITIAL);
+<string>\0{
+
+	if(str_i + 1 < MAX_STR_CONST){
+	   string_buf[str_i] = '0';
+	   ++str_i;
+	 }
+	 else {
+	   string_too_long(); // report an error
+	 }
+}
+
+<string>\[^\"]{
+
+	char* letter = strdup(yytext);
+	if(str_i + 1 < MAX_STR_CONST){
+	   string_buf[str_i] = letter[1];
+	   free(letter);
+	   ++str_i;
+	 }
+	 else {
+	   free(letter);
+	   string_too_long(); // report an error
+	 }
+}
+
+<string>[^\\"\n]* {
+	char* matched_text = strdup(yytext);
+	int length = sizeof(matched_text) / sizeof(char*);
+
+	if(str_i + length < MAX_STR_CONST){
+
+	   for(int i = 0; i < length; i++){
+	       string_buf[str_i] = matched_text[i];
+	       str_i++;
+	   }
+	 }
+	 else {
+	   string_too_long(); // report an error
+	 }
+}
+
+<string>\"{
+    cool_yylval.symbol = string_buf;
+    str_i = 0;
+    memset(string_buf, 0, sizeof(string_buf));
+
+    BEGIN(INITIAL);
+    return (STR_CONST);
+}
 
  /*
   *  The multiple-character operators.
@@ -176,3 +268,8 @@ VERTAB	    (\v|\11)
 
 
 %%
+
+string_too_long(){
+    cool_yyval.error_msg = "String constant too long"
+    return (ERROR);
+}
