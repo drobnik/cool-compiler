@@ -36,6 +36,7 @@ extern int verbose_flag;
 extern YYSTYPE cool_yylval;
 
 extern int str_i;
+extern void string_too_long();
 %}
 
 /*
@@ -47,30 +48,30 @@ DIGIT		[0-9]
 INTEGER		DIGIT+
 ID		[a-z][a-zA-Z0-9_]*
 TYPE_ID		[A-Z][a-zA-Z0-9_]*
-SELF		self
-SELF_T		SELF_TYPE
+SELF		"self"
+SELF_T		"SELF_TYPE"
 
-// SYMBOLS
-.	    .
-@	    @
-<-	    <-
-=	    =
-(	    (
-)	    )
-+	    +
--	    -
-*	    *
-/	    /
-<	    <
-<=	    <=
-;	    ;
-,	    ,
-~	    ~
-}	    }
-{	    {
+/* SYMBOLS */
+DOT	    "."
+AT	    "@"
+ARROW	    "<-"
+EQ	    "="
+PAR_L	    "("
+PAR_R	    ")"
+ADD	    "+"
+SUB	    "-"
+MULT	    "*"
+DIV	    "/"
+LESS	    "<"
+LESS_EQ	    "<="
+SEMI_C	    ";"
+COMM	    ","
+TYLD	    "~"
+BRACK_R	    "}"
+BRACK_L	    "{"
 
 
-// KEYWORDS
+/* KEYWORDS */
 IF_K        (?i:if)
 FI_K	    (?i:fi)
 THEN_K	    (?i:then)
@@ -90,14 +91,14 @@ NEW_K	    (?i:new)
 OF_K	    (?i:of)
 NOT_K	    (?i:not)
 
-// WHITESPACES
-BLANK	\32
-NEWLN	(\n|\10)
-FORMFEED    (\f|\12)
-CRETURN	    (\r|\13)
-TAB	    (\t|\09)
-VERTAB	    (\v|\11)
-
+/* WHITESPACES */
+BLANK	 " "|"\32"
+NEWLN	 \n|"\10"
+FORMFEED \f|"\12"
+CRETURN	    \r|"\13"
+TAB	    \t|"\09"
+VERTAB	    \v|"\11"
+BLANKS    ({TAB}|{BACKSPACE}|{FORMFEED}|{BLANK})
 BACKSPACE   \b
 
 %x comment
@@ -105,36 +106,40 @@ BACKSPACE   \b
 %x string
 %%
 
-/*
-  *  Nested comments
-  */
+{SELF} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return OBJECTID; }
 
-*) {
-	cool_ylval.error_msg = "Unmatched *)";
-	return (ERROR);
-}
+{SELF_T} {
+     cool_yylval.symbol = idtable.add_string(yytext);
+     return OBJECTID; }
 
-(*	BEGIN(comment);
-<string, comment> {
+"*)" {
+	cool_yylval.error_msg = "Unmatched *)";
+	return (ERROR); }
+
+"(*"	{ BEGIN(comment); }
+
+<comment>[^*\n] /* !!! */
+
+<string,comment>. {
 	 cool_yylval.error_msg = "Comment in the string.";
-	 return ERROR;
-}
+	 return ERROR; }
+
 <comment><<EOF>> {
 	 cool_yylval.error_msg = "EOF in the comment.";
-	 return ERROR;
-}
-<comment>\n	    ++curr_lineno;
-<comment>[^*\n]
+	 return ERROR; }
+
+<comment>NEWLN { ++curr_lineno; }
+
 <comment>"*"+[^*)\n]
+
 <comment>"*"+")"    BEGIN(INITIAL);
 
 
-/*
-  *  One-line comment
-  */
 "--"  BEGIN(comment_line);
-<comment, comment_line> {
-	  cool_yyval.error_msg = "One line comment in the multiline comment!";
+<comment,comment_line>. {
+	  cool_yylval.error_msg = "One line comment in the multiline comment!";
 	  return ERROR;
 }
 
@@ -147,46 +152,53 @@ BACKSPACE   \b
 		 BEGIN(INITIAL);
 }
 
-/*
-  *  Strings
-  */
 
-\"	BEGIN(string);
+\" {
+   BEGIN(string);
+   str_i = 0;
+}
+
+<string>\0 { /* !!! */
+
+	if(str_i + 1 < MAX_STR_CONST){
+	   string_buf[str_i] = '0';
+	   ++str_i;
+	 }
+	 else {
+	     cool_yylval.error_msg = "String constant too long";
+	     return ERROR;
+	 }
+}
 
 <string>\n {
-	   cool_yyval.error_msg = "Non-escaped newline character in the string.";
+	   cool_yylval.error_msg = "Non-escaped newline character in the string.";
 	   return ERROR; }
 
 <string><<EOF>> {
-	  cool_yyval.error_msg = "EOF in the string!"
-	  return ERROR; }
-
-<string>\\. {
-	  cool_yyval.error_msg = "Bogus escape in string";
+	  cool_yylval.error_msg = "EOF in the string!";
 	  return ERROR; }
 
 <string>\\n {
 	 ++curr_lineno;
 
 	 if(str_i + 1 < MAX_STR_CONST){
-	   string_buf[str_i] = '\n';
-	   ++str_i;
+	     string_buf[str_i] = '\n';
+	     ++str_i;
 	 }
 	 else {
-	   string_too_long(); // report an error
+	      cool_yylval.error_msg = "String constant too long";
+	      return ERROR;
 	 }
 }
 
-<string>[TAB|BACKSPACE|FORMFEED|BLANK]{
-
-	// silly hacks
+<string>{BLANKS} {
 	char sym;
 	char* match = strdup(yytext);
 
-	if(match == "\t" || match == "\09") sym = '\t';
-	else if(match == "\b") sym = '\b';
-	else if(match == "\f" || match == "\12") sym = '\f';
-	else if(match == "\32") sym = ' ';
+	if(strcmp(match, "\t") == 0 || strcmp(match, "\09") == 0) sym = '\t';
+	else if(strcmp(match, "\b") == 0) sym = '\b';
+	else if(strcmp(match, "\f") == 0 || strcmp(match, "\12") == 0) sym = '\f';
+	else if(strcmp(match,"\32") == 0) sym = ' ';
 
 	if(str_i + 1 < MAX_STR_CONST){
 	   string_buf[str_i] = sym;
@@ -195,24 +207,23 @@ BACKSPACE   \b
 	 }
 	 else {
 	   free(match);
-	   string_too_long(); // report an error
+	   cool_yylval.error_msg = "String constant too long";
+	   return ERROR;
 	 }
 }
 
-<string>\0{
+<string>\" {
+    cool_yylval.symbol = stringtable.add_string(string_buf);
+    memset(string_buf, 0, sizeof(string_buf));
 
-	if(str_i + 1 < MAX_STR_CONST){
-	   string_buf[str_i] = '0';
-	   ++str_i;
-	 }
-	 else {
-	   string_too_long(); // report an error
-	 }
+    BEGIN(INITIAL);
+    return (STR_CONST);
 }
 
-<string>\[^\"]{
+<string>\[^\"] {
 
 	char* letter = strdup(yytext);
+
 	if(str_i + 1 < MAX_STR_CONST){
 	   string_buf[str_i] = letter[1];
 	   free(letter);
@@ -220,7 +231,9 @@ BACKSPACE   \b
 	 }
 	 else {
 	   free(letter);
-	   string_too_long(); // report an error
+	   cool_yylval.error_msg = "String constant too long";
+	   return ERROR;
+
 	 }
 }
 
@@ -236,84 +249,51 @@ BACKSPACE   \b
 	   }
 	 }
 	 else {
-	   string_too_long(); // report an error
+	   cool_yylval.error_msg = "String constant too long";
+	   return ERROR;
 	 }
 }
 
-<string>\"{
-    cool_yylval.symbol = string_buf;
-    str_i = 0;
-    memset(string_buf, 0, sizeof(string_buf));
-
-    BEGIN(INITIAL);
-    return (STR_CONST);
-}
-
- /*
-  *  The multiple-character operators.
-  */
-
 {DARROW}		{ return (DARROW); }
 
-{<=}			{ return (LE); }
+{LESS_EQ}		{ return (LE); }
 
-{<-}			{return (ASSIGN); }
+{ARROW}			{return (ASSIGN); }
 
 {INTEGER} {
-     cool_yylval.symbol = inttable.add_string(yytext)
-     return INT_CONST;
-
-}
+     cool_yylval.symbol = inttable.add_string(yytext);
+     return INT_CONST; }
 
 {ID} {
      cool_yylval.symbol = idtable.add_string(yytext);
-     return OBJECTID;
-}
+     return OBJECTID; }
 
 {TYPE_ID} {
      cool_yylval.symbol = idtable.add_string(yytext);
-     return TYPEID;
-}
-
-{SELF} {
-     cool_yylval.symbol = idtable.add_string(yytext);
-     return OBJECTID;
-}
-
-{SELF_T} {
-     cool_yylval.symbol = idtable.add_string(yytext);
-     return OBJECTID;
-}
+     return TYPEID; }
 
 {FALSE | TRUE} {
+    int hehe;
+    hehe = strcmp(FALSE, yytext);
     cool_yylval.boolean = yytext;
-    return BOOL_CONTS;
-}
+    return BOOL_CONST; }
 
- /*
-  * One-character symbols.
-  */
+{DOT}			{ return 46; }
+{AT}			{ return 64; }
+{EQ}			{ return 61; }
+{PAR_L}			{ return 40; }
+{PAR_R}			{ return 41; }
+{ADD}			{ return 43; }
+{SUB}			{ return 45; }
+{MULT}			{ return 42; }
+{DIV}			{ return 47; }
+{LESS}			{ return 60; }
+{SEMI_C}		{ return 59; }
+{COMM}			{ return 44; }
+{TYLD}			{ return 126; }
+{BRACK_R}		{ return 125; }
+{BRACK_L}		{ return 123; }
 
-{.}	{ return 46; }
-{@}	{ return 64; }
-{=}	{ return 61; }
-{(}	{ return 40; }
-{)}	{ return 41; }
-{+}	{ return 43; }
-{-}	{ return 45; }
-{*}	{ return 42; }
-{/}	{ return 47; }
-{<}	{ return 60; }
-{;}	{ return 59; }
-{,}	{ return 44; }
-{~}	{ return 126; }
-{}}	{ return 125; }
-{{}	{ return 123; }
-
- /*
-  * Keywords are case-insensitive except for the values true and false,
-  * which must begin with a lower-case letter.
-  */
 
 {IF_K}		{ return (IF); }
 {FI_K}		{ return (FI); }
@@ -332,7 +312,7 @@ BACKSPACE   \b
 {OF_K}		{ return (OF); }
 {NOT_K}		{ return (NOT); }
 
-NEWLN		{ ++curr_lineno; }
+{NEWLN}		{ ++curr_lineno; }
 BLANK
 FORMFEED
 CRETURN
@@ -341,8 +321,7 @@ TAB
 BACKSPACE
 
 %%
-
-string_too_long(){
-    cool_yyval.error_msg = "String constant too long"
-    return (ERROR);
+void string_too_long(){
+    cool_yylval.error_msg = "String constant too long";
+ /*   return ERROR;*/
 }
