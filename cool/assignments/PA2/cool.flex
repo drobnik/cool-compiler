@@ -36,7 +36,6 @@ extern int verbose_flag;
 extern YYSTYPE cool_yylval;
 
 extern int str_i;
-extern void string_too_long();
 %}
 
 /*
@@ -51,8 +50,7 @@ TYPE_ID		[A-Z][a-zA-Z0-9_]*
 SELF		"self"
 SELF_T		"SELF_TYPE"
 
-/* SYMBOLS */
-DOT	    "."
+DOT         "."
 AT	    "@"
 ARROW	    "<-"
 EQ	    "="
@@ -70,8 +68,6 @@ TYLD	    "~"
 BRACK_R	    "}"
 BRACK_L	    "{"
 
-
-/* KEYWORDS */
 IF_K        (?i:if)
 FI_K	    (?i:fi)
 THEN_K	    (?i:then)
@@ -91,14 +87,13 @@ NEW_K	    (?i:new)
 OF_K	    (?i:of)
 NOT_K	    (?i:not)
 
-/* WHITESPACES */
-BLANK	 " "|"\32"
-NEWLN	 \n|"\10"
+BLANK    " "|"\32"
+NEWLN    \n|"\10"
 FORMFEED \f|"\12"
 CRETURN	    \r|"\13"
 TAB	    \t|"\09"
 VERTAB	    \v|"\11"
-BLANKS    ({TAB}|{BACKSPACE}|{FORMFEED}|{BLANK})
+BLANKS    {TAB}|{BACKSPACE}|{FORMFEED}|{BLANK}
 BACKSPACE   \b
 
 %x comment
@@ -114,15 +109,66 @@ BACKSPACE   \b
      cool_yylval.symbol = idtable.add_string(yytext);
      return OBJECTID; }
 
+
+{FALSE} {
+    cool_yylval.boolean = false;
+    return BOOL_CONST; }
+
+{TRUE} {
+    cool_yylval.boolean = true;
+    return BOOL_CONST; }
+
+{DOT}			{ return 46; }
+{AT}			{ return 64; }
+{EQ}			{ return 61; }
+{PAR_L}			{ return 40; }
+{PAR_R}			{ return 41; }
+{ADD}			{ return 43; }
+{SUB}			{ return 45; }
+{MULT}			{ return 42; }
+{DIV}			{ return 47; }
+{LESS}			{ return 60; }
+{SEMI_C}		{ return 59; }
+{COMM}			{ return 44; }
+{TYLD}			{ return 126; }
+{BRACK_R}		{ return 125; }
+{BRACK_L}		{ return 123; }
+
+
+{IF_K}		{ return (IF); }
+{FI_K}		{ return (FI); }
+{THEN_K}	{ return (THEN); }
+{ELSE_K}	{ return (ELSE); }
+{CLASS_K}	{ return (CLASS); }
+{INHERITS_K}	{ return (INHERITS); }
+{ISVOID_K}	{ return (ISVOID); }
+{LET_K}		{ return (LET_STMT); }
+{LOOP_K}	{ return (LOOP); }
+{POOL_K}	{ return (POOL); }
+{WHILE_K}	{ return (WHILE); }
+{CASE_K}	{ return (CASE); }
+{ESAC_K}	{ return (ESAC); }
+{NEW_K}		{ return (NEW); }
+{OF_K}		{ return (OF); }
+{NOT_K}		{ return (NOT); }
+
+{NEWLN}		{ ++curr_lineno; }
+BLANK
+FORMFEED
+CRETURN
+VERTAB
+TAB
+BACKSPACE
+
 "*)" {
 	cool_yylval.error_msg = "Unmatched *)";
 	return (ERROR); }
 
 "(*"	{ BEGIN(comment); }
 
-<comment>[^*\n] /* !!! */
+<comment>[^*\n]
 
-<string,comment>. {
+<string,comment>[^\"] {
 	 cool_yylval.error_msg = "Comment in the string.";
 	 return ERROR; }
 
@@ -137,7 +183,8 @@ BACKSPACE   \b
 <comment>"*"+")"    BEGIN(INITIAL);
 
 
-"--"  BEGIN(comment_line);
+"--"  { BEGIN(comment_line); }
+
 <comment,comment_line>. {
 	  cool_yylval.error_msg = "One line comment in the multiline comment!";
 	  return ERROR;
@@ -152,13 +199,11 @@ BACKSPACE   \b
 		 BEGIN(INITIAL);
 }
 
-
 \" {
    BEGIN(string);
-   str_i = 0;
-}
+   str_i = 0; }
 
-<string>\0 { /* !!! */
+<string>\\0 {
 
 	if(str_i + 1 < MAX_STR_CONST){
 	   string_buf[str_i] = '0';
@@ -170,7 +215,7 @@ BACKSPACE   \b
 	 }
 }
 
-<string>\n {
+<string>NEWLN {
 	   cool_yylval.error_msg = "Non-escaped newline character in the string.";
 	   return ERROR; }
 
@@ -241,7 +286,7 @@ BACKSPACE   \b
 	char* matched_text = strdup(yytext);
 	int length = sizeof(matched_text) / sizeof(char*);
 
-	if(str_i + length < MAX_STR_CONST){
+		if(str_i + length < MAX_STR_CONST){
 
 	   for(int i = 0; i < length; i++){
 	       string_buf[str_i] = matched_text[i];
@@ -271,57 +316,6 @@ BACKSPACE   \b
 {TYPE_ID} {
      cool_yylval.symbol = idtable.add_string(yytext);
      return TYPEID; }
-
-{FALSE | TRUE} {
-    int hehe;
-    hehe = strcmp(FALSE, yytext);
-    cool_yylval.boolean = yytext;
-    return BOOL_CONST; }
-
-{DOT}			{ return 46; }
-{AT}			{ return 64; }
-{EQ}			{ return 61; }
-{PAR_L}			{ return 40; }
-{PAR_R}			{ return 41; }
-{ADD}			{ return 43; }
-{SUB}			{ return 45; }
-{MULT}			{ return 42; }
-{DIV}			{ return 47; }
-{LESS}			{ return 60; }
-{SEMI_C}		{ return 59; }
-{COMM}			{ return 44; }
-{TYLD}			{ return 126; }
-{BRACK_R}		{ return 125; }
-{BRACK_L}		{ return 123; }
-
-
-{IF_K}		{ return (IF); }
-{FI_K}		{ return (FI); }
-{THEN_K}	{ return (THEN); }
-{ELSE_K}	{ return (ELSE); }
-{CLASS_K}	{ return (CLASS); }
-{INHERITS_K}	{ return (INHERITS); }
-{ISVOID_K}	{ return (ISVOID); }
-{LET_K}		{ return (LET_STMT); }
-{LOOP_K}	{ return (LOOP); }
-{POOL_K}	{ return (POOL); }
-{WHILE_K}	{ return (WHILE); }
-{CASE_K}	{ return (CASE); }
-{ESAC_K}	{ return (ESAC); }
-{NEW_K}		{ return (NEW); }
-{OF_K}		{ return (OF); }
-{NOT_K}		{ return (NOT); }
-
-{NEWLN}		{ ++curr_lineno; }
-BLANK
-FORMFEED
-CRETURN
-VERTAB
-TAB
-BACKSPACE
-
 %%
-void string_too_long(){
-    cool_yylval.error_msg = "String constant too long";
- /*   return ERROR;*/
-}
+
+int str_i = 0;
