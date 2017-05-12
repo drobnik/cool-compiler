@@ -36,6 +36,7 @@ extern int verbose_flag;
 extern YYSTYPE cool_yylval;
 
 extern int str_i;
+extern int eof_detected;
 %}
 
 /*
@@ -77,7 +78,7 @@ FALSE	    f(?i:alse)
 TRUE	    t(?i:rue)
 INHERITS_K  (?i:inherits)
 ISVOID_K    (?i:isvoid)
-LET_K	    (?i:let)
+LET_K	    "let"
 LOOP_K	    (?i:loop)
 POOL_K	    (?i:pool)
 WHILE_K	    (?i:while)
@@ -168,20 +169,21 @@ BACKSPACE
 
 <comment>[^*\n]
 
-<string,comment>[^\"] {
-	 cool_yylval.error_msg = "Comment in the string.";
-	 return ERROR; }
+<comment>"*"+[^*)\n]
 
 <comment><<EOF>> {
 	 cool_yylval.error_msg = "EOF in the comment.";
-	 return ERROR; }
 
-<comment>NEWLN { ++curr_lineno; }
+	 if(eof_detected) return 0;
+	 else {
+	   eof_detected = 1;
+	   return ERROR;
+	 }
+}
 
-<comment>"*"+[^*)\n]
+<comment>\n { ++curr_lineno; }
 
 <comment>"*"+")"    BEGIN(INITIAL);
-
 
 "--"  { BEGIN(comment_line); }
 
@@ -192,8 +194,14 @@ BACKSPACE
 
 <comment_line><<EOF>> {
 	 cool_yylval.error_msg = "EOF in the comment.";
-	 return ERROR;
+
+	 if(eof_detected) return 0;
+	 else {
+	   eof_detected = 1;
+	   return ERROR;
+	 }
 }
+
 <comment_line>\n {
 		 ++curr_lineno;
 		 BEGIN(INITIAL);
@@ -220,8 +228,14 @@ BACKSPACE
 	   return ERROR; }
 
 <string><<EOF>> {
-	  cool_yylval.error_msg = "EOF in the string!";
-	  return ERROR; }
+	 cool_yylval.error_msg = "EOF in the string!";
+
+	 if(eof_detected) return 0;
+	 else {
+	   eof_detected = 1;
+	   return ERROR;
+	 }
+}
 
 <string>\\n {
 	 ++curr_lineno;
@@ -319,3 +333,4 @@ BACKSPACE
 %%
 
 int str_i = 0;
+int eof_detected = 0;
