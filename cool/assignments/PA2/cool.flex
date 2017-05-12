@@ -64,6 +64,7 @@ DIV	    "/"
 LESS	    "<"
 LESS_EQ	    "<="
 SEMI_C	    ";"
+COLON	    ":"
 COMM	    ","
 TYLD	    "~"
 BRACK_R	    "}"
@@ -129,12 +130,12 @@ BACKSPACE   \b
 {MULT}			{ return 42; }
 {DIV}			{ return 47; }
 {LESS}			{ return 60; }
+{COLON}			{ return 58; }
 {SEMI_C}		{ return 59; }
 {COMM}			{ return 44; }
 {TYLD}			{ return 126; }
 {BRACK_R}		{ return 125; }
 {BRACK_L}		{ return 123; }
-
 
 {IF_K}		{ return (IF); }
 {FI_K}		{ return (FI); }
@@ -143,7 +144,7 @@ BACKSPACE   \b
 {CLASS_K}	{ return (CLASS); }
 {INHERITS_K}	{ return (INHERITS); }
 {ISVOID_K}	{ return (ISVOID); }
-{LET_K}		{ return (LET_STMT); }
+{LET_K}		{ return (LET); }
 {LOOP_K}	{ return (LOOP); }
 {POOL_K}	{ return (POOL); }
 {WHILE_K}	{ return (WHILE); }
@@ -154,12 +155,7 @@ BACKSPACE   \b
 {NOT_K}		{ return (NOT); }
 
 {NEWLN}		{ ++curr_lineno; }
-BLANK
-FORMFEED
-CRETURN
-VERTAB
-TAB
-BACKSPACE
+[ \t\r\v\b]+
 
 "*)" {
 	cool_yylval.error_msg = "Unmatched *)";
@@ -238,7 +234,6 @@ BACKSPACE
 }
 
 <string>\\n {
-	 ++curr_lineno;
 
 	 if(str_i + 1 < MAX_STR_CONST){
 	     string_buf[str_i] = '\n';
@@ -321,7 +316,13 @@ BACKSPACE
 
 {INTEGER} {
      cool_yylval.symbol = inttable.add_string(yytext);
-     return INT_CONST; }
+     return INT_CONST;
+}
+
+{DIGIT} {
+     cool_yylval.symbol = inttable.add_string(yytext);
+     return INT_CONST;
+}
 
 {ID} {
      cool_yylval.symbol = idtable.add_string(yytext);
@@ -330,6 +331,11 @@ BACKSPACE
 {TYPE_ID} {
      cool_yylval.symbol = idtable.add_string(yytext);
      return TYPEID; }
+
+. {
+  cool_yylval.error_msg = "Invalid expression";
+  return ERROR;
+}
 %%
 
 int str_i = 0;
