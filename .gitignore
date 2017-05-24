@@ -1,3 +1,4 @@
+# Project specific gitignore
 cool/lib/
 cool/examples/
 cool/doc/
@@ -7,18 +8,14 @@ cool/src/PA2/
 cool/src/PA3/
 cool/src/PA4/
 cool/src/PA5/
-
 cool/include/PA2/
 cool/include/PA3/
 cool/include/PA4/
 cool/include/PA5/
 
-
 cool/assignments/PA1/
-
 notes/
 resources/
-
 assignments
 bin
 etc
@@ -26,5 +23,33 @@ examples
 include
 lib
 src
-
 !*/assignments
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Other
+*.SKEL
+*.cc
+
+# Emacs
+*~
+\#*\#
+auto-save-list
+tramp
+.\#*
