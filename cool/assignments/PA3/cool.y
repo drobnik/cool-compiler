@@ -143,7 +143,8 @@
     %type <expression> exp
     %type <expression> obj_exp
     %type <expressions> exp_list
-    %type <expressions> obj_exp_list
+    %type <expression> let
+    %type <expresssions> let_list
 
     /* Precedence declarations go here. */
     %right ASSIGN
@@ -227,11 +228,7 @@
 
     formal
     : OBJECTID ':' TYPEID
-    {
-      @$ = @3;
-      SET_NODELOC(@3);
-      $$ = formal(@1, @3);
-    }
+    { $$ = formal(@1, @3); }
     ;
 
     exp
@@ -251,13 +248,13 @@
     {
       @$ = @8;
       SET_NODELOC(@8);
-      $$ = dispatch(@1, @3, @5, @7);
+      $$ = static_dispatch(@1, @3, @5, @7);
     }
     | OBJECTID '(' exp_list ')'
     {
       @$ = @4;
       SET_NODELOC(@4);
-      /*  TO DO  */
+      /*$$ = dispatch(..., @1, @3);*/
     }
     | IF exp THEN exp ELSE exp FI
     {
@@ -277,10 +274,11 @@
       SET_NODELOC(@3);
       $$ = block(@2);
     }
-    | LET OBJECTID ':' TYPEID obj_exp_list IN exp
-    {      /*  TO DO  */}
-    | LET OBJECTID ':' TYPEID '<-' exp obj_exp_list IN exp
-    {      /*  TO DO  */}
+    | LET let_list IN exp
+    {
+      @$ = @4;
+      SET_NODELOC(@4);
+    }
     | CASE exp OF cases_branch_list ESAC
     {      /*  TO DO  */}
     | NEW TYPEID
@@ -342,15 +340,18 @@
       $$ = eq(@1, @3);
     }
     | NOT exp
-    {}
+    {
+      @$ = @2;
+      SET_NODELOC(@2);
+      $$ = comp(@2);
+    }
     | '(' exp ')'
     {
       @$ = @3;
       SET_NODELOC(@3);
-      /*  TO DO  */
     }
     | OBJECTID
-    { /*  TO DO  */}
+    { $$ = object(@1); }
     | STR_CONST
     { $$ = string_const(@1); }
     | INT_CONST
@@ -359,7 +360,6 @@
     { $$ = bool_const(@1); }
     | '{' error '}'
     | '(' error ')'
-    | LET error ','
 
     obj_exp
     : '.' OBJECTID ':' TYPEID
@@ -367,23 +367,34 @@
     | '.' OBJECTID ':'TYPEID '<-' exp
     {/*  TO DO  */}
 
-    obj_exp_list
+    let_list
     :
-    {}
-    | obj_exp
-    {}
-    | obj_exp ',' obj_exp_list
-    {}
+    {/*  TO DO  */}
+    | let
+    {/*  TO DO  */}
+    | let ',' let_list
+    {/*  TO DO  */}
+    | error ','
+
+    let
+    : LET OBJECTID ':' TYPEID
+    { $$  = let(@2, @3, no_expr(), /*body*/); }
+    | LET OBJECTID ':' TYPEID '<-' exp
+    {
+      @$ = @5;
+      SET_NODELOC(@5);
+      $$ = let(@2, @3, @5, /*body*/);
+    }
 
     cases_branch_list
     : case_branch
-    {}
+    {/*  TO DO  */}
     | case_branch cases_branch_list
-    {}
+    {/*  TO DO  */}
 
     case_branch
     : OBJECTID ':' TYPEID '=>' exp ';'
-    {}
+    {/*  TO DO  */}
 
 /* end of grammar */
     %%
