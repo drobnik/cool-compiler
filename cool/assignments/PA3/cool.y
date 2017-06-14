@@ -138,9 +138,12 @@
     %type <formal> formal
     %type <formals> formal_list
     %type <case_> case_branch
+    %type <case_> case_exp
     %type <cases> cases_branch_list
     %type <expression> exp
-    %type <expressions> exp_list;
+    %type <expression> obj_exp
+    %type <expressions> exp_list
+    %type <expressions> obj_exp_list
 
     /* Precedence declarations go here. */
     %right ASSIGN
@@ -154,6 +157,8 @@
     %left '.'
     %right LET
 
+
+    %destructor { free($$); } <*>
     %%
 
     /*
@@ -161,6 +166,7 @@
     */
     program	: class_list	{ @$ = @1; ast_root = program($1); }
     ;
+
 
     class_list
     : class			/* single class */
@@ -180,9 +186,204 @@
     ;
 
     /* Feature list may be empty, but no empty features in list. */
-    feature_list:		/* empty */
-    {  $$ = nil_Features(); }
 
+    feature_list
+    :		/* empty */
+    {  $$ = nil_Features(); }
+    | OBJECTID '(' formal_list ')' ':' TYPEID '{' exp '}'
+    {
+      @$ = @9;
+      SET_NODELOC(@9);
+      $$ = method(@1, @3, @6, @8);
+    }
+    | OBJECTID ':' TYPEID
+    { $$ = formal(@1, @3);  /*??*/ }
+    | OBJECTID ':' TYPEID '<-' exp
+    {
+      @$ = @5;
+      SET_NODELOC(@5);
+      $$ = attr(@1, @3, @5);
+    }
+    | error '\n'
+    ;
+
+    formal_list
+    :            /*empty*/
+    { $$ = nil_Formals(); }
+    | formal
+    {
+      @$ = @1;
+      SET_NODELOC(@1);
+      $$ = single_Formals(@1);
+    }
+    | formal ',' formal_list
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = append_Formals(@1, @3);
+    }
+    | error ','
+    ;
+
+    formal
+    : OBJECTID ':' TYPEID
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = formal(@1, @3);
+    }
+    ;
+
+    exp
+    : OBJECTID '<-' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = assign(@1, @3);
+    }
+    | exp '.' OBJECTID '(' exp_list ')'
+    {
+      @$ = @6;
+      SET_NODELOC(@6);
+      $$ = dispatch(@1, @3, @5);
+    }
+    | exp '@' TYPEID '.' OBJECTID '(' exp_list ')'
+    {
+      @$ = @8;
+      SET_NODELOC(@8);
+      $$ = dispatch(@1, @3, @5, @7);
+    }
+    | OBJECTID '(' exp_list ')'
+    {
+      @$ = @4;
+      SET_NODELOC(@4);
+      /*  TO DO  */
+    }
+    | IF exp THEN exp ELSE exp FI
+    {
+      @$ = @7;
+      SET_NODELOC(@7);
+      $$ = cond(@2, @4, @6);
+    }
+    | WHILE exp LOOP exp POOL
+    {
+      @$ = @5;
+      SET_NODELOC(@5);
+      $$ = loop(@2, @4);
+    }
+    | '{' exp_list '}'
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = block(@2);
+    }
+    | LET OBJECTID ':' TYPEID obj_exp_list IN exp
+    {      /*  TO DO  */}
+    | LET OBJECTID ':' TYPEID '<-' exp obj_exp_list IN exp
+    {      /*  TO DO  */}
+    | CASE exp OF cases_branch_list ESAC
+    {      /*  TO DO  */}
+    | NEW TYPEID
+    {
+      $$ = new_(@2);
+    }
+    | ISVOID exp
+    {
+      @$ = @2;
+      SET_NODELOC(@2);
+      $$ = isvoid(@2);
+    }
+    | exp '+' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = plus(@1, @3);
+    }
+    | exp '-' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = sub(@1, @3);
+    }
+    | exp '*' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = mul(@1, @3);
+    }
+    | exp '/' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = divide(@1, @3);
+    }
+    | '~' exp
+    {
+      @$ = @2;
+      SET_NODELOC(@2);
+      $$ = neg(@2)
+    }
+    | exp '<' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = lt(@1, @3);
+    }
+    | exp LE exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = leq(@1, @3);
+    }
+    | exp '=' exp
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      $$ = eq(@1, @3);
+    }
+    | NOT exp
+    {}
+    | '(' exp ')'
+    {
+      @$ = @3;
+      SET_NODELOC(@3);
+      /*  TO DO  */
+    }
+    | OBJECTID
+    { /*  TO DO  */}
+    | STR_CONST
+    { $$ = string_const(@1); }
+    | INT_CONST
+    { $$ = int_const(@1); }
+    | BOOL_CONST
+    { $$ = bool_const(@1); }
+    | '{' error '}'
+    | '(' error ')'
+    | LET error ','
+
+    obj_exp
+    : '.' OBJECTID ':' TYPEID
+    {/*  TO DO  */}
+    | '.' OBJECTID ':'TYPEID '<-' exp
+    {/*  TO DO  */}
+
+    obj_exp_list
+    :
+    {}
+    | obj_exp
+    {}
+    | obj_exp ',' obj_exp_list
+    {}
+
+    cases_branch_list
+    : case_branch
+    {}
+    | case_branch cases_branch_list
+    {}
+
+    case_branch
+    : OBJECTID ':' TYPEID '=>' exp ';'
+    {}
 
 /* end of grammar */
     %%
